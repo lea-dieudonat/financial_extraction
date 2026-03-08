@@ -64,6 +64,8 @@ function goTo(n) {
   document.getElementById('progress-fill').style.width = ((n + 1) / SLIDES.length * 100) + '%';
   document.getElementById('btn-prev').disabled = n === 0;
   document.getElementById('btn-next').disabled = n === SLIDES.length - 1;
+
+  SLIDES[n].onEnter?.();
 }
 
 function navigate(dir) { goTo(current + dir); }

@@ -10,9 +10,158 @@ const NAV_SECTIONS = [
   { label: 'Conclusion',   indices: [14, 15] },
 ];
 
+// ── ONTOLOGY GRAPH ────────────────────────────────────────────────────────────
+// Called via onEnter when slide 6a becomes active.
+// Scripts injected through innerHTML are not executed by the browser,
+// so the D3 logic lives here as a plain function instead.
+
+function initOntologyGraph() {
+  const svg = d3.select('#onto-svg');
+  if (!svg.node() || svg.selectAll('*').size() > 0) return; // guard re-init
+
+  const nodes = [
+    // Core
+    { id: 'fund',                          group: 0, r: 18 },
+    { id: 'investment_objective',          group: 1, r: 14 },
+    { id: 'capital_growth',                group: 1, r: 11 },
+    { id: 'capital_appreciation',          group: 1, r: 9  },
+    { id: 'income',                        group: 1, r: 11 },
+    // Derivatives
+    { id: 'derivatives',                   group: 2, r: 13 },
+    { id: 'bonds',                         group: 2, r: 11 },
+    { id: 'commodities',                   group: 2, r: 9  },
+    { id: 'currencies',                    group: 2, r: 8  },
+    { id: 'investment_grade_bonds',        group: 2, r: 7  },
+    { id: 'convertible_bonds',             group: 2, r: 7  },
+    // Companies / shares
+    { id: 'companies',                     group: 3, r: 12 },
+    { id: 'share_of_company',              group: 3, r: 10 },
+    { id: 'chinese_companies',             group: 3, r: 7  },
+    { id: 'shares_of_asian_companies',     group: 3, r: 6  },
+    { id: 'shares_of_european_companies',  group: 3, r: 6  },
+    // Environmental
+    { id: 'environmental_markets',         group: 4, r: 11 },
+    { id: 'energy_efficiency',             group: 4, r: 7  },
+    { id: 'waste_management',              group: 4, r: 7  },
+    { id: 'sustainable_transport',         group: 4, r: 7  },
+    { id: 'water_infrastructure',          group: 4, r: 7  },
+    // Tech
+    { id: 'innovating_technologies',       group: 5, r: 11 },
+    { id: 'artificial_intelligence',       group: 5, r: 7  },
+    { id: 'robotics',                      group: 5, r: 7  },
+    { id: 'cloud_computing',               group: 5, r: 7  },
+    // Healthcare
+    { id: 'healthcare_innovation',         group: 6, r: 10 },
+    { id: 'genetic',                       group: 6, r: 6  },
+    { id: 'drug_delivery',                 group: 6, r: 6  },
+    // Portfolio / team
+    { id: 'portfolio',                     group: 7, r: 10 },
+    { id: 'investment_team',               group: 7, r: 9  },
+    { id: 'asset_manager',                 group: 7, r: 6  },
+    { id: 'debt_instrument',               group: 8, r: 11 },
+  ];
+
+  const links = [
+    { source: 'fund',                         target: 'investment_objective',  type: 'achieve' },
+    { source: 'investment_objective',         target: 'capital_growth',        type: 'sub' },
+    { source: 'investment_objective',         target: 'income',                type: 'sub' },
+    { source: 'capital_appreciation',         target: 'investment_objective',  type: 'sub' },
+    { source: 'bonds',                        target: 'derivatives',           type: 'sub' },
+    { source: 'commodities',                  target: 'derivatives',           type: 'sub' },
+    { source: 'currencies',                   target: 'derivatives',           type: 'sub' },
+    { source: 'investment_grade_bonds',       target: 'bonds',                 type: 'sub' },
+    { source: 'convertible_bonds',            target: 'bonds',                 type: 'sub' },
+    { source: 'chinese_companies',            target: 'companies',             type: 'sub' },
+    { source: 'shares_of_asian_companies',    target: 'share_of_company',      type: 'sub' },
+    { source: 'shares_of_european_companies', target: 'share_of_company',      type: 'sub' },
+    { source: 'energy_efficiency',            target: 'environmental_markets', type: 'sub' },
+    { source: 'waste_management',             target: 'environmental_markets', type: 'sub' },
+    { source: 'sustainable_transport',        target: 'environmental_markets', type: 'sub' },
+    { source: 'water_infrastructure',         target: 'environmental_markets', type: 'sub' },
+    { source: 'artificial_intelligence',      target: 'innovating_technologies', type: 'sub' },
+    { source: 'robotics',                     target: 'innovating_technologies', type: 'sub' },
+    { source: 'cloud_computing',              target: 'innovating_technologies', type: 'sub' },
+    { source: 'genetic',                      target: 'healthcare_innovation', type: 'sub' },
+    { source: 'drug_delivery',                target: 'healthcare_innovation', type: 'sub' },
+    { source: 'asset_manager',                target: 'investment_team',       type: 'sub' },
+    { source: 'fund',                         target: 'portfolio',             type: 'rel' },
+    { source: 'fund',                         target: 'investment_team',       type: 'rel' },
+  ];
+
+  const colors = ['#00E5C3','#A78BFA','#FF7A45','#60A5FA','#4ADE80','#F472B6','#FBBF24','#94A8C2','#F87171'];
+
+  const container = document.getElementById('onto-graph');
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  const tooltip = document.getElementById('onto-tooltip');
+
+  // Wrapper group — zoom/pan transforms this, not the SVG root
+  const g = svg.append('g');
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(d => d.type === 'achieve' ? 110 : 70).strength(0.5))
+    .force('charge', d3.forceManyBody().strength(-320))
+    .force('center', d3.forceCenter(w / 2, h / 2))
+    .force('collision', d3.forceCollide(d => d.r + 14));
+
+  // Zoom + pan
+  svg.call(
+    d3.zoom()
+      .scaleExtent([0.25, 4])
+      .on('zoom', e => g.attr('transform', e.transform))
+  );
+
+  const link = g.append('g')
+    .selectAll('line').data(links).join('line')
+    .attr('stroke', d => d.type === 'achieve' ? '#00E5C3' : '#1E2A40')
+    .attr('stroke-width', d => d.type === 'achieve' ? 2 : 1)
+    .attr('stroke-opacity', 0.7)
+    .attr('stroke-dasharray', d => d.type === 'rel' ? '4,3' : null);
+
+  const node = g.append('g')
+    .selectAll('g').data(nodes).join('g')
+    .style('cursor', 'grab')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end',   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  node.append('circle')
+    .attr('r', d => d.r)
+    .attr('fill',         d => colors[d.group] + '22')
+    .attr('stroke',       d => colors[d.group])
+    .attr('stroke-width', d => d.group === 0 ? 2.5 : 1.5);
+
+  node.append('text')
+    .text(d => d.id.replace(/_/g, ' '))
+    .attr('text-anchor', 'middle')
+    .attr('dy',          d => d.r + 11)
+    .attr('font-size',   d => d.r > 12 ? 10 : 8)
+    .attr('fill',        d => colors[d.group])
+    .attr('font-family', "'DM Mono', monospace")
+    .style('pointer-events', 'none');
+
+  node
+    .on('mouseover', (e, d) => {
+      tooltip.style.opacity = '1';
+      tooltip.textContent   = d.id.replace(/_/g, ' ');
+      tooltip.style.left    = (e.offsetX + 12) + 'px';
+      tooltip.style.top     = (e.offsetY - 8)  + 'px';
+    })
+    .on('mouseout', () => { tooltip.style.opacity = '0'; });
+
+  sim.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+}
+
 // ── SLIDE DEFINITIONS ─────────────────────────────────────────────────────────
-// Each entry: { num, label, html }
-//   num   → displayed in the sidebar (e.g. "1a")
+// Each entry: { num, label, onEnter?, html }
+//   num     → displayed in the sidebar (e.g. "1a")
 //   label → sidebar link text
 //   html  → inner HTML injected into the .slide div
 
@@ -362,18 +511,15 @@ const SLIDES = [
   // ── 6a · ONTOLOGY ───────────────────────────────────────────────────────────
   {
     num: '6a', label: 'Ontology',
+    onEnter: initOntologyGraph,
     html: `
       <div class="section-tag">06 — Results</div>
       <h2 class="slide-title">Does It Work? <em>The Ontology in Action.</em></h2>
       <div class="callout big">The system learned the structure of financial knowledge.</div>
-      <ul class="bullet-list" style="margin-bottom:20px;">
-        <li><strong>Ontology graph:</strong> fund → investment_objective → capital_growth, income, equity appreciation… Concepts and relationships automatically extracted from text</li>
-        <li><strong>Similarity matching:</strong> KIID and Prospectus of the same fund correctly matched despite completely different wording</li>
-      </ul>
-      <div class="graph-placeholder">
-        <div class="icon">🕸️</div>
-        Insert ontology graph here<br>
-        <span style="font-size:11px;color:var(--muted);">fund → investment_objective → capital_growth, income, equity_appreciation…</span>
+      <div id="onto-graph" style="width:100%;height:420px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative;">
+        <svg id="onto-svg" width="100%" height="100%"></svg>
+        <div id="onto-tooltip" style="position:absolute;background:#0D1220;border:1px solid #1E2A40;border-radius:6px;padding:6px 10px;font-size:11px;color:#F0F4FF;pointer-events:none;opacity:0;transition:opacity 0.15s;font-family:'DM Mono',monospace;"></div>
+        <div style="position:absolute;bottom:10px;right:12px;font-family:'DM Mono',monospace;font-size:9px;color:#5A6A85;pointer-events:none;">scroll to zoom · drag to pan</div>
       </div>
     `,
   },
