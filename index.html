@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turning Raw Financial Documents into Semantic Knowledge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <meta name="author" content="Léa Dieudonat">
+  <meta name="description" content="Master's thesis — NLP & ontology-based pipeline to turn financial documents into a semantic knowledge base. University of Lorraine, 2020.">
+</head>
+<body>
+
+<div id="app">
+
+  <nav id="nav">
+    <div id="nav-logo"><span>Presentation</span></div>
+    <div id="nav-sections"></div>
+  </nav>
+
+  <div id="main">
+    <div id="progress"><div id="progress-fill"></div></div>
+
+    <div id="topbar">
+      <span id="slide-counter">Slide <span id="cur">1</span> / <span id="tot"></span></span>
+      <div id="nav-arrows">
+        <button class="arrow-btn" id="btn-prev">←</button>
+        <button class="arrow-btn" id="btn-next">→</button>
+      </div>
+    </div>
+
+    <div id="slides-wrap"></div>
+  </div>
+
+</div>
+
+<div id="kbd-hint">
+  <kbd>←</kbd><kbd>→</kbd> navigate &nbsp;·&nbsp; <kbd>esc</kbd> agenda
+</div>
+
+<noscript>This presentation requires JavaScript to run.</noscript>
+<script src="slides-data.js"></script>
+<script src="slides.js"></script>
+
+</body>
+</html>
