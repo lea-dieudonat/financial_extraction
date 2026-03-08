@@ -159,6 +159,154 @@ function initOntologyGraph() {
   });
 }
 
+// ── CLUSTER TREEMAP ───────────────────────────────────────────────────────────
+// Leaf names are anonymised — fund names were client data from a PwC internship.
+// The cluster structure, group counts, and category labels are preserved.
+const anon = n => Array.from({ length: n }, (_, i) => ({ name: `fund ${String(i + 1).padStart(2, '0')}` }));
+
+function initClusterGraph() {
+  const container = document.getElementById('cluster-wrap');
+  if (!container || d3.select('#cluster-svg').selectAll('*').size() > 0) return;
+
+  const RED   = '#FF7A45';
+  const GREEN = '#4ADE80';
+
+  const hierarchy = {
+    name: 'root',
+    children: [
+      {
+        name: 'Bonds & Fixed Income', color: RED,
+        children: [
+          { name: 'Multi-Asset & Absolute Return', children: anon(13) },
+          { name: 'Money Market & Short Term',     children: anon(7)  },
+          { name: 'Corporate Bond',                children: anon(8)  },
+          { name: 'High Yield',                    children: anon(6)  },
+          { name: 'Emerging & Asia Bond',          children: anon(6)  },
+          { name: 'Inflation & Duration',          children: anon(5)  },
+          { name: 'Euro Core Bond',                children: anon(7)  },
+          { name: 'Environmental',                 children: anon(1)  },
+        ]
+      },
+      {
+        name: 'Equities & Real Assets', color: GREEN,
+        children: [
+          { name: 'Europe Equity',          children: anon(13) },
+          { name: 'Europe Multi-Factor',    children: anon(2)  },
+          { name: 'Global & Multi-Factor',  children: anon(5)  },
+          { name: 'Asia & Emerging Equity', children: anon(13) },
+          { name: 'US & Americas',          children: anon(4)  },
+          { name: 'Real Estate',            children: anon(3)  },
+          { name: 'Global Equity',          children: anon(7)  },
+          { name: 'Thematic',               children: anon(7)  },
+        ]
+      }
+    ]
+  };
+
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+  const svg = d3.select('#cluster-svg').attr('width', W).attr('height', H);
+
+  function nodeColor(d) {
+    let node = d;
+    while (node.depth > 1) node = node.parent;
+    const base = node.data.color || '#94A8C2';
+    if (d.depth === 1) return base + '28';
+    if (d.depth === 2) return base + '14';
+    return base + '0A';
+  }
+  function textColor(d) {
+    let node = d;
+    while (node.depth > 1) node = node.parent;
+    const base = node.data.color || '#94A8C2';
+    if (d.depth === 1) return '#F0F4FF';
+    return base;
+  }
+
+  const stack = [hierarchy];
+
+  function render(rootData) {
+    svg.selectAll('*').remove();
+
+    const root = d3.hierarchy(rootData).sum(() => 1).sort((a, b) => b.value - a.value);
+
+    d3.treemap()
+      .size([W, H])
+      .padding(d => d.depth === 0 ? 4 : d.depth === 1 ? 3 : 1)
+      .paddingTop(d => d.depth === 1 ? 22 : d.depth === 2 ? 18 : 0)
+      .round(true)(root);
+
+    const tooltip = document.getElementById('cluster-tooltip');
+
+    const cell = svg.selectAll('g')
+      .data(root.descendants().filter(d => d.depth > 0))
+      .join('g')
+      .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+    cell.append('rect')
+      .attr('width',  d => Math.max(0, d.x1 - d.x0))
+      .attr('height', d => Math.max(0, d.y1 - d.y0))
+      .attr('fill',   d => nodeColor(d))
+      .attr('stroke', d => { let n = d; while (n.depth > 1) n = n.parent; return (n.data.color || '#94A8C2') + '55'; })
+      .attr('stroke-width', d => d.depth === 1 ? 1.5 : 0.5)
+      .attr('rx', 4)
+      .style('cursor', d => d.children ? 'pointer' : 'default')
+      .on('click', (e, d) => {
+        if (!d.children) return;
+        e.stopPropagation();
+        stack.push(d.data);
+        render(d.data);
+        renderBreadcrumb();
+      })
+      .on('mouseover', function(e, d) {
+        d3.select(this).attr('stroke-width', 2).attr('stroke', () => { let n = d; while (n.depth > 1) n = n.parent; return n.data.color || '#94A8C2'; });
+        if (!d.children) { tooltip.style.opacity = '1'; tooltip.textContent = d.data.name; tooltip.style.left = (e.offsetX + 10) + 'px'; tooltip.style.top = (e.offsetY - 28) + 'px'; }
+      })
+      .on('mousemove', (e, d) => { if (!d.children) { tooltip.style.left = (e.offsetX + 10) + 'px'; tooltip.style.top = (e.offsetY - 28) + 'px'; } })
+      .on('mouseout',  function(e, d) { d3.select(this).attr('stroke-width', d.depth === 1 ? 1.5 : 0.5); tooltip.style.opacity = '0'; });
+
+    // Group headers
+    cell.filter(d => d.children && (d.x1 - d.x0) > 40)
+      .append('text')
+      .attr('x', 6).attr('y', 14)
+      .attr('font-size',   d => d.depth === 1 ? 11 : 10)
+      .attr('font-weight', d => d.depth === 1 ? 700 : 600)
+      .attr('font-family', d => d.depth === 1 ? "'Syne',sans-serif" : "'DM Sans',sans-serif")
+      .attr('fill', d => textColor(d))
+      .attr('pointer-events', 'none')
+      .text(d => { const w = d.x1 - d.x0; return w < 80 ? d.data.name.slice(0, Math.floor(w / 7)) + '…' : d.data.name; });
+
+    // Leaf labels
+    cell.filter(d => !d.children)
+      .append('text')
+      .attr('x', d => (d.x1 - d.x0) / 2)
+      .attr('y', d => (d.y1 - d.y0) / 2 + 4)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', d => { const w = d.x1 - d.x0, h = d.y1 - d.y0; return Math.min(10, Math.max(6, Math.min(w / 8, h / 2))); })
+      .attr('font-family', "'DM Sans',sans-serif")
+      .attr('fill', d => textColor(d))
+      .attr('opacity', 0.85)
+      .attr('pointer-events', 'none')
+      .text(d => { const w = d.x1 - d.x0, h = d.y1 - d.y0; if (w < 30 || h < 14) return ''; return w < 70 ? d.data.name.split(' ').slice(0, 2).join(' ') : d.data.name; });
+  }
+
+  function renderBreadcrumb() {
+    const bc = document.getElementById('cluster-breadcrumb');
+    bc.innerHTML = '';
+    stack.forEach((s, i) => {
+      if (i > 0) { const sep = document.createElement('span'); sep.textContent = ' › '; sep.style.color = '#5A6A85'; bc.appendChild(sep); }
+      const span = document.createElement('span');
+      span.textContent = i === 0 ? 'All clusters' : s.name;
+      span.style.cssText = `cursor:pointer;color:${i === stack.length - 1 ? '#F0F4FF' : '#00E5C3'}`;
+      span.onclick = () => { stack.splice(i + 1); render(stack[stack.length - 1]); renderBreadcrumb(); };
+      bc.appendChild(span);
+    });
+  }
+
+  render(hierarchy);
+  renderBreadcrumb();
+}
+
 // ── SLIDE DEFINITIONS ─────────────────────────────────────────────────────────
 // Each entry: { num, label, onEnter?, html }
 //   num     → displayed in the sidebar (e.g. "1a")
@@ -527,19 +675,17 @@ const SLIDES = [
   // ── 6b · CLASSIFICATION ─────────────────────────────────────────────────────
   {
     num: '6b', label: 'Classification',
+    onEnter: initClusterGraph,
     html: `
       <div class="section-tag">06 — Results</div>
       <h2 class="slide-title">Subfunds, <em>Automatically Classified.</em></h2>
-      <div class="callout">"Without any manual labelling, the system identifies natural groupings across hundreds of subfunds — by meaning, not by keyword."</div>
-      <ul class="bullet-list" style="margin-bottom:20px;">
-        <li>K-means and hierarchical clustering applied to embedding vectors of subfund descriptions</li>
-        <li><strong>Result:</strong> natural groupings emerge — Capital Growth, Income, Balanced funds cluster together automatically</li>
-        <li><strong>No manual labelling required:</strong> the system discovers structure that was always there, but invisible to keyword search</li>
-      </ul>
-      <div class="graph-placeholder">
-        <div class="icon">📊</div>
-        Insert clustering visualization here<br>
-        <span style="font-size:11px;color:var(--muted);">K-means clusters or hierarchical dendrogram of subfunds</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div id="cluster-breadcrumb" style="font-family:'DM Mono',monospace;font-size:11px;display:flex;align-items:center;gap:2px;"></div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5A6A85;">click to drill down · 108 subfunds · Ward clustering</div>
+      </div>
+      <div id="cluster-wrap" style="width:100%;flex:1;min-height:0;height:430px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative;">
+        <svg id="cluster-svg"></svg>
+        <div id="cluster-tooltip" style="position:absolute;background:#0D1220;border:1px solid #1E2A40;border-radius:6px;padding:5px 10px;font-size:11px;color:#F0F4FF;pointer-events:none;opacity:0;transition:opacity 0.15s;font-family:'DM Mono',monospace;white-space:nowrap;"></div>
       </div>
     `,
   },
